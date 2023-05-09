@@ -2,18 +2,17 @@
 #include <stdlib.h>
 #include <string.h>
 #include "mlcc.h"
-
-#define HELLO 123
+#include "lexer.h"
 
 int main(int argc, char *argv[])
 {
-
-    printf("%s\n", TEST);
     if (argc != 2 ) 
     {
         fprintf(stderr, "%s: Usage: ./mlcc <filename.c>\n", PROGRAM_NAME);
         return EXIT_FAILURE;
     }
+
+    int error = 0;
 
     char filename[128];
     memset(filename, 0, sizeof(filename));
@@ -22,7 +21,16 @@ int main(int argc, char *argv[])
     if (file == NULL)
     {
         fprintf(stderr, "%s: Could not open file <%s>\n", PROGRAM_NAME, filename);
-        return EXIT_FAILURE;
+        exit(EXIT_FAILURE);
+    }
+
+    // Pass file through lexer
+    char **tokens = (char **)malloc(1024 * sizeof(char*));
+    error = lex_file(file, tokens);
+    if (!error)
+    {
+        fprintf(stderr, "%s: Failed to lex file <%s>\n", PROGRAM_NAME, filename);
+        exit(EXIT_FAILURE);
     }
 
     return 0;
