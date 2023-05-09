@@ -1,4 +1,4 @@
-mlcc:
+mlcc: 
 	$(MAKE) -C c/
 
 commands:
