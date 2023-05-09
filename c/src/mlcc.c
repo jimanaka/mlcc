@@ -25,13 +25,21 @@ int main(int argc, char *argv[])
     }
 
     // Pass file through lexer
-    char **tokens = (char **)malloc(1024 * sizeof(char*));
-    error = lex_file(file, tokens);
-    if (!error)
+    int token_count = 0;
+    struct token **tokens = (char **)malloc(1024 * sizeof(struct token*));
+    token_count = lex_file(file, tokens);
+
+    for (int i = 0; i < token_count; i++)
     {
-        fprintf(stderr, "%s: Failed to lex file <%s>\n", PROGRAM_NAME, filename);
-        exit(EXIT_FAILURE);
+        printf("token[%d]: %s\n", i, (*(tokens+i))->value);
     }
+
+    for(int i = 0; i < token_count; i++)
+    {
+        token_free(*(tokens + i));
+    }
+
+    free(tokens);
 
     return 0;
 }
