@@ -4,7 +4,8 @@
 
 #define INITIAL_TOKEN_SIZE 16
 
-static char *whitespace = " \t\r\n\v";
+static const char *whitespace = " \t\r\n\v";
+static const char *symbols = "-+=()*&^%!~|{}[];'\",.<>/?`";
 
 static enum state {
     IN_WORD,
@@ -13,9 +14,14 @@ static enum state {
 
 static void add_token(struct token **tokens, size_t *tokens_count, struct token *current_token)
 {
+    if (current_token->size <= 0) {
+        return;
+    }
+
     *(tokens + *tokens_count) = (struct token*)malloc(sizeof(struct token*));
     memcpy(*(tokens + *tokens_count), current_token, sizeof(struct token));
     (*tokens_count)++;
+    token_free(current_token);
 }
 
 static void reallocate_token_value(struct token *current_token)
@@ -58,7 +64,7 @@ void token_free(struct token *current_token) {
 /// @brief Splits text file into lexical tokens
 /// @param file file to lex
 /// @param tokens buffer to store tokens
-/// @return 0 if success, -1 if failure
+/// @return token_count, number of generated tokens 
 int lex_file(FILE *file, struct token **tokens)
 {
     char current_char[2] = {'\0', '\0'};
@@ -74,7 +80,6 @@ int lex_file(FILE *file, struct token **tokens)
 
             // Add current_token to tokens array
             add_token(tokens, &tokens_count, current_token);
-            token_free(current_token);
             // set state to OUT_WORD
             state = OUT_WORD;
             continue;
@@ -85,6 +90,16 @@ int lex_file(FILE *file, struct token **tokens)
             current_token = token_create();
             state = IN_WORD;
         }
+
+        if(strchr(symbols, current_char[0]) != NULL) {
+            add_token(tokens, &tokens_count, current_token);
+            current_token = token_create();
+            cat_token_value(current_token, current_char);
+            add_token(tokens, &tokens_count, current_token);
+            state = OUT_WORD;
+            continue;
+        }
+
         cat_token_value(current_token, current_char);
     }
 
