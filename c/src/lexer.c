@@ -5,15 +5,20 @@
 #define INITIAL_TOKEN_SIZE 16
 
 static const char *whitespace = " \t\r\n\v";
-static const char *symbols = "-+=()*&^%!~|{}[];'\",.<>/?`";
+static const char *separators = "(){}[];,.";
+static const char *operators = "+-*/\%<>=&|!~^";
 
-static enum state {
+static enum STATE {
     IN_WORD,
+    IN_STRING,
+    IN_CHAR,
+    IN_OP,
     OUT_WORD,
-};
+} state = OUT_WORD;
 
 static void add_token(struct token **tokens, size_t *tokens_count, struct token *current_token)
 {
+    printf("adding token: %s\n", current_token->value);
     if (current_token->size <= 0) {
         return;
     }
@@ -58,7 +63,107 @@ static struct token* token_create() {
 }
 
 void token_free(struct token *current_token) {
+    free(current_token->value);
     free(current_token);
+}
+
+static int eat_char(const char read_char, struct token *current_token, struct token **tokens, size_t *tokens_count)
+{
+    char current_char[2] = {read_char, '\0'};
+    printf("eating char: %s\n", current_char);
+    // if operator check if last_char was operator
+    // if yes -> cat two together, store in token, add token to tokens
+    // if no -> store operator in last_char, return
+    // if last_char is an operator and you have anything else, add current_token to tokens, make new token to store new value in
+
+    if (strchr(operators, current_char[0]) != NULL) {
+        if (state == IN_OP) {
+            cat_token_value(current_token, current_char);
+            add_token(tokens, tokens_count, current_token);
+            state = OUT_WORD;
+            return 0;
+        }
+
+        if (state != OUT_WORD) {
+            add_token(tokens, tokens_count, current_token);
+            current_token = token_create();
+            state = IN_OP;
+        }
+        return 0;
+    }
+
+    if (state == IN_OP) {
+        add_token(tokens, tokens_count, current_token);
+        current_token = token_create();
+        state = OUT_WORD;
+    }
+
+
+    // if whitespace -> check if inside word or out of word
+    // if out of word -> do nothing
+    // if in word -> add current token to tokens
+    if (strchr(whitespace, current_char[0]) != NULL) {
+        if (state == OUT_WORD) return 0;
+
+        add_token(tokens, tokens_count, current_token);
+        state = OUT_WORD;
+        return 0;
+    }
+
+    // if separator -> add current token to tokens
+        // create new token, cat separator, add current token to tokens
+    if (strchr(separators, current_char[0]) != NULL) {
+        if (state != OUT_WORD) {
+            add_token(tokens, tokens_count, current_token);
+            current_token = token_create();
+        }
+        cat_token_value(current_token, current_char);
+        add_token(tokens, tokens_count, current_token);
+        state = OUT_WORD;
+    }
+    
+
+    // if string_separator all chars are stored in same token until the same string sep is found
+    // def a better way to do this, probably switch statement
+    if (current_char[0] == '\"') {
+        if (state != IN_STRING) {
+            add_token(tokens, tokens_count, current_token);
+            current_token = token_create();
+            cat_token_value(current_token, current_char);
+            state = IN_STRING;
+            return 0;
+        } else {
+            cat_token_value(current_token, current_char);
+            add_token(tokens, tokens_count, current_token);
+            state = OUT_WORD;
+            return 0;
+        }
+    }
+
+    //if char separator, all chars are stored in same token until the same char sep is found.  if first char is not '\', then the char token cannot have size > 1
+    // again, probably should use a switch
+    if (current_char[0] == '\'') {
+        if (state != IN_CHAR) {
+            add_token(tokens, tokens_count, current_token);
+            current_token = token_create();
+            cat_token_value(current_token, current_char);
+            state = IN_CHAR;
+            return 0;
+        } else {
+            cat_token_value(current_token, current_char);
+            add_token(tokens, tokens_count, current_token);
+            state = OUT_WORD;
+            return 0;
+        }
+    }
+
+    if (state == OUT_WORD) {
+        state = IN_WORD;
+    }
+
+    cat_token_value(current_token, current_char);
+
+    return 0;
 }
 
 /// @brief Splits text file into lexical tokens
@@ -67,41 +172,15 @@ void token_free(struct token *current_token) {
 /// @return token_count, number of generated tokens 
 int lex_file(FILE *file, struct token **tokens)
 {
-    char current_char[2] = {'\0', '\0'};
-    struct token *current_token = token_create();
+    char current_char = '\0';
     size_t tokens_count = 0;
+    struct token *current_token = token_create();
 
-    enum state state = OUT_WORD;
-
-    while ((current_char[0] = fgetc(file)) != EOF)
+    while ((current_char = fgetc(file)) != EOF)
     {
-        if (strchr(whitespace, current_char[0]) != NULL) {
-            if (state == OUT_WORD) continue;
-
-            // Add current_token to tokens array
-            add_token(tokens, &tokens_count, current_token);
-            // set state to OUT_WORD
-            state = OUT_WORD;
-            continue;
-        }
-
-        // cat char to current token + increase token length
-        if (state == OUT_WORD) {
-            current_token = token_create();
-            state = IN_WORD;
-        }
-
-        if(strchr(symbols, current_char[0]) != NULL) {
-            add_token(tokens, &tokens_count, current_token);
-            current_token = token_create();
-            cat_token_value(current_token, current_char);
-            add_token(tokens, &tokens_count, current_token);
-            state = OUT_WORD;
-            continue;
-        }
-
-        cat_token_value(current_token, current_char);
+        eat_char(current_char, current_token, tokens, &tokens_count);
     }
+    printf("token count: %d\n", tokens_count);
 
     return tokens_count;
 }
