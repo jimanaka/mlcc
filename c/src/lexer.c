@@ -16,17 +16,33 @@ static enum STATE {
     OUT_WORD,
 } state = OUT_WORD;
 
+static struct token* token_create() {
+    struct token *current_token = (struct token*) malloc(sizeof(struct token));
+    current_token->value = (char*) calloc(INITIAL_TOKEN_SIZE, sizeof(char));
+    current_token->size = 0;
+    current_token->max_size = INITIAL_TOKEN_SIZE;
+
+    return current_token;
+}
+
+void token_free(struct token *current_token) {
+    free(current_token->value);
+    free(current_token);
+}
 static void add_token(struct token **tokens, size_t *tokens_count, struct token *current_token)
 {
-    printf("adding token: %s\n", current_token->value);
     if (current_token->size <= 0) {
         return;
     }
+    printf("adding token: %s\n", current_token->value);
 
     *(tokens + *tokens_count) = (struct token*)malloc(sizeof(struct token*));
     memcpy(*(tokens + *tokens_count), current_token, sizeof(struct token));
+    (*(tokens + *tokens_count))->value = (char *)calloc(current_token->max_size, sizeof(char));
+    strcpy((*(tokens + *tokens_count))->value, current_token->value);
     (*tokens_count)++;
     token_free(current_token);
+    current_token = token_create();
 }
 
 static void reallocate_token_value(struct token *current_token)
@@ -53,29 +69,15 @@ static void cat_token_value(struct token *current_token, char *current_char)
     strcpy(current_token->value, buffer);
 }
 
-static struct token* token_create() {
-    struct token *current_token = (struct token*) malloc(sizeof(struct token));
-    current_token->value = (char*) malloc(INITIAL_TOKEN_SIZE * sizeof(char));
-    current_token->size = 0;
-    current_token->max_size = INITIAL_TOKEN_SIZE;
-
-    return current_token;
-}
-
-void token_free(struct token *current_token) {
-    free(current_token->value);
-    free(current_token);
-}
 
 static int eat_char(const char read_char, struct token *current_token, struct token **tokens, size_t *tokens_count)
 {
     char current_char[2] = {read_char, '\0'};
-    printf("eating char: %s\n", current_char);
     // if operator check if last_char was operator
     // if yes -> cat two together, store in token, add token to tokens
     // if no -> store operator in last_char, return
     // if last_char is an operator and you have anything else, add current_token to tokens, make new token to store new value in
-
+    printf("Eating char: %c\n", read_char);
     if (strchr(operators, current_char[0]) != NULL) {
         if (state == IN_OP) {
             cat_token_value(current_token, current_char);
@@ -84,17 +86,14 @@ static int eat_char(const char read_char, struct token *current_token, struct to
             return 0;
         }
 
-        if (state != OUT_WORD) {
-            add_token(tokens, tokens_count, current_token);
-            current_token = token_create();
-            state = IN_OP;
-        }
+        add_token(tokens, tokens_count, current_token);
+        cat_token_value(current_token, current_char);
+        state = IN_OP;
         return 0;
     }
 
     if (state == IN_OP) {
         add_token(tokens, tokens_count, current_token);
-        current_token = token_create();
         state = OUT_WORD;
     }
 
@@ -115,11 +114,11 @@ static int eat_char(const char read_char, struct token *current_token, struct to
     if (strchr(separators, current_char[0]) != NULL) {
         if (state != OUT_WORD) {
             add_token(tokens, tokens_count, current_token);
-            current_token = token_create();
         }
         cat_token_value(current_token, current_char);
         add_token(tokens, tokens_count, current_token);
         state = OUT_WORD;
+        return 0;
     }
     
 
@@ -128,7 +127,6 @@ static int eat_char(const char read_char, struct token *current_token, struct to
     if (current_char[0] == '\"') {
         if (state != IN_STRING) {
             add_token(tokens, tokens_count, current_token);
-            current_token = token_create();
             cat_token_value(current_token, current_char);
             state = IN_STRING;
             return 0;
@@ -145,7 +143,6 @@ static int eat_char(const char read_char, struct token *current_token, struct to
     if (current_char[0] == '\'') {
         if (state != IN_CHAR) {
             add_token(tokens, tokens_count, current_token);
-            current_token = token_create();
             cat_token_value(current_token, current_char);
             state = IN_CHAR;
             return 0;
